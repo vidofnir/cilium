@@ -834,6 +834,29 @@ skip_vtep:
 
 	info = lookup_ip4_remote_endpoint(ip4->daddr, 0);
 
+	/* Forward IGMP packets with multicast destinations directly to external interface.
+	 * These packets come from pods via cilium_net/cilium_host and need to be forwarded to the world.
+	 * Only forward when extended IP protocols are enabled.
+	 */
+	if (from_host && CONFIG(enable_extended_ip_protocols) &&
+	    ip4->protocol == IPPROTO_IGMP && IN_MULTICAST(bpf_ntohl(ip4->daddr))) {
+		/* Redirect directly to external interface instead of punting to kernel.
+		 * This avoids kernel routing issues with pod source IPs.
+		 * Use direct_routing_dev_ifindex which is the external interface (e.g., ens192).
+		 */
+		if (CONFIG(direct_routing_dev_ifindex) != 0) {
+			send_trace_notify(ctx, TRACE_TO_NETWORK, secctx, WORLD_IPV4_ID,
+					  TRACE_EP_ID_UNKNOWN, CONFIG(direct_routing_dev_ifindex),
+					  trace.reason, trace.monitor, bpf_htons(ETH_P_IP));
+			return ctx_redirect(ctx, CONFIG(direct_routing_dev_ifindex), 0);
+		}
+		/* Fallback: punt to kernel if direct_routing_dev_ifindex not available */
+		send_trace_notify(ctx, TRACE_TO_NETWORK, secctx, WORLD_IPV4_ID,
+				  TRACE_EP_ID_UNKNOWN, CONFIG(interface_ifindex),
+				  trace.reason, trace.monitor, bpf_htons(ETH_P_IP));
+		return CTX_ACT_OK;
+	}
+
 #ifdef TUNNEL_MODE
 	/* Check if the source and destination IP has same subnet ID. */
 	bool same_subnet_id = false;
@@ -1103,6 +1126,23 @@ do_netdev(struct __ctx_buff *ctx, __u16 proto, __u32 __maybe_unused identity,
 		if (!revalidate_data_pull(ctx, &data, &data_end, &ip4)) {
 			ret = DROP_INVALID;
 			goto drop_err_ingress;
+		}
+
+		/* Early check for IGMP packets from pods that need forwarding to external interface.
+		 * This handles packets redirected from bpf_lxc to cilium_net/cilium_host.
+		 */
+		if (from_host && ip4->protocol == IPPROTO_IGMP &&
+		    IN_MULTICAST(bpf_ntohl(ip4->daddr))) {
+			/* Redirect directly to external interface.
+			 * Use direct_routing_dev_ifindex which is the external interface (e.g., ens192).
+			 */
+			if (CONFIG(direct_routing_dev_ifindex) != 0) {
+				__u32 secctx = resolve_srcid_ipv4(ctx, ip4, identity, &ipcache_srcid);
+				send_trace_notify(ctx, TRACE_TO_NETWORK, secctx, WORLD_IPV4_ID,
+						  TRACE_EP_ID_UNKNOWN, CONFIG(direct_routing_dev_ifindex),
+						  trace.reason, trace.monitor, proto);
+				return ctx_redirect(ctx, CONFIG(direct_routing_dev_ifindex), 0);
+			}
 		}
 
 		identity = resolve_srcid_ipv4(ctx, ip4, identity, &ipcache_srcid);
@@ -1788,7 +1828,43 @@ skip_ipsec_nodeport_revdnat:
 		ret = DROP_UNSUPPORTED_L2;
 		goto out;
 	}
+#else
+	if (!validate_ethertype(ctx, &proto)) {
+		send_trace_notify(ctx, TRACE_TO_STACK, src_id, UNKNOWN_ID,
+				  TRACE_EP_ID_UNKNOWN, TRACE_IFINDEX_UNKNOWN,
+				  TRACE_REASON_UNKNOWN, 0, proto);
+		ret = CTX_ACT_OK;
+		goto out;
+	}
+#endif /* ENABLE_HOST_FIREWALL */
 
+	/* Early check for IGMP packets from pods that need forwarding to external interface.
+	 * This handles packets redirected from bpf_lxc to cilium_net/cilium_host.
+	 */
+	if (proto == bpf_htons(ETH_P_IP)) {
+		void *data, *data_end;
+		struct iphdr *ip4;
+
+		if (revalidate_data_pull(ctx, &data, &data_end, &ip4)) {
+			if (ip4->protocol == IPPROTO_IGMP &&
+			    IN_MULTICAST(bpf_ntohl(ip4->daddr))) {
+				/* Redirect directly to external interface.
+				 * Use direct_routing_dev_ifindex which is the external interface (e.g., ens192).
+				 */
+				if (CONFIG(direct_routing_dev_ifindex) != 0) {
+					__u32 secctx = resolve_srcid_ipv4(ctx, ip4, src_id, NULL);
+					send_trace_notify(ctx, TRACE_TO_NETWORK, secctx, WORLD_IPV4_ID,
+							  TRACE_EP_ID_UNKNOWN, CONFIG(direct_routing_dev_ifindex),
+							  trace.reason, trace.monitor, proto);
+					traced = true;
+					ret = ctx_redirect(ctx, CONFIG(direct_routing_dev_ifindex), 0);
+					goto out;
+				}
+			}
+		}
+	}
+
+#ifdef ENABLE_HOST_FIREWALL
 	ret = host_ingress_policy(ctx, proto, src_id, traced, true, &ext_err);
 #else
 	ret = CTX_ACT_OK;

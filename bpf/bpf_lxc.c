@@ -1558,6 +1558,23 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 	}
 #endif /* ENABLE_MULTICAST */
 
+	/* Forward IGMP packets directly via BPF when multicast is disabled.
+	 * Redirect to cilium_host which will forward to the external interface.
+	 * This avoids punting to kernel stack where pod IPs aren't recognized.
+	 */
+	if (CONFIG(enable_extended_ip_protocols) && ip4->protocol == IPPROTO_IGMP) {
+		struct trace_ctx trace_igmp = {
+			.reason = TRACE_REASON_UNKNOWN,
+			.monitor = TRACE_PAYLOAD_LEN,
+		};
+
+		send_trace_notify(ctx, TRACE_TO_HOST, SECLABEL_IPV4, HOST_ID,
+				  TRACE_EP_ID_UNKNOWN, CILIUM_NET_IFINDEX,
+				  trace_igmp.reason, trace_igmp.monitor,
+				  bpf_htons(ETH_P_IP));
+		return ctx_redirect(ctx, CILIUM_NET_IFINDEX, BPF_F_INGRESS);
+	}
+
 #ifdef ENABLE_PER_PACKET_LB
 	/* will tailcall internally or return error */
 	return __per_packet_lb_svc_xlate_4(ctx, ip4, ext_err);
