@@ -1,17 +1,18 @@
+# DISABLED: This workflow has been disabled
 name: Docs-builder Image Build
 
 # Any change in triggers needs to be reflected in the concurrency group.
-on:
-  pull_request_target:
-    branches:
-      - v1.18
-    types:
-      - opened
-      - synchronize
-      - reopened
-    paths:
-      - Documentation/Dockerfile
-      - Documentation/requirements.txt
+# on:
+#   pull_request_target:
+#     branches:
+#       - v1.18
+#     types:
+#       - opened
+#       - synchronize
+#       - reopened
+#     paths:
+#       - Documentation/Dockerfile
+#       - Documentation/requirements.txt
 
 
 permissions:

@@ -1,34 +1,35 @@
+# DISABLED: This workflow has been disabled
 name: L7 Policy Perf Test (l7-perf)
 
-on:
-  schedule:
-    - cron: "27 0 * * 1-5"
+# on:
+#   schedule:
+#     - cron: "27 0 * * 1-5"
 
-  workflow_dispatch:
-    inputs:
-      PR-number:
-        description: "Pull request number."
-        required: true
-      context-ref:
-        description: "Context in which the workflow runs. If PR is from a fork, will be the PR target branch (general case). If PR is NOT from a fork, will be the PR branch itself (this allows committers to test changes to workflows directly from PRs)."
-        required: true
-      SHA:
-        description: "SHA under test (head of the PR branch)."
-        required: true
-      num-test-nodes:
-        description: "Number of test nodes to create"
-        required: false
-        default: 1
-        type: number
-      num-client-nodes:
-        description: "Number of client nodes to create/use for testing"
-        required: false
-        default: 1
-        type: number
-      extra-args:
-        description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
-        required: false
-        default: '{}'
+#   workflow_dispatch:
+#     inputs:
+#       PR-number:
+#         description: "Pull request number."
+#         required: true
+#       context-ref:
+#         description: "Context in which the workflow runs. If PR is from a fork, will be the PR target branch (general case). If PR is NOT from a fork, will be the PR branch itself (this allows committers to test changes to workflows directly from PRs)."
+#         required: true
+#       SHA:
+#         description: "SHA under test (head of the PR branch)."
+#         required: true
+#       num-test-nodes:
+#         description: "Number of test nodes to create"
+#         required: false
+#         default: 1
+#         type: number
+#       num-client-nodes:
+#         description: "Number of client nodes to create/use for testing"
+#         required: false
+#         default: 1
+#         type: number
+#       extra-args:
+#         description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
+#         required: false
+#         default: '{}'
 
 permissions:
   # To be able to retrieve artifacts information

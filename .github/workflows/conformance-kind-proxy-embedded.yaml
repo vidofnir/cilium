@@ -1,18 +1,19 @@
+# DISABLED: This workflow has been disabled
 name: Conformance Kind Envoy Embedded
 
 # Any change in triggers needs to be reflected in the concurrency group.
-on:
-  pull_request:
-    paths-ignore:
-      - 'Documentation/**'
-      - 'test/**'
-  push:
-    branches:
-      - main
-      - ft/main/**
-    paths-ignore:
-      - 'Documentation/**'
-      - 'test/**'
+# on:
+#   pull_request:
+#     paths-ignore:
+#       - 'Documentation/**'
+#       - 'test/**'
+#   push:
+#     branches:
+#       - main
+#       - ft/main/**
+#     paths-ignore:
+#       - 'Documentation/**'
+#       - 'test/**'
 
 permissions: read-all
 

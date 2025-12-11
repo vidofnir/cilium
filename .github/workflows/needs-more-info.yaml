@@ -1,9 +1,10 @@
+# DISABLED: This workflow has been disabled
 name: Issue Info Complete
 
 # This workflow is triggered on issue comments.
-on:
-  issue_comment:
-    types: created
+# on:
+#   issue_comment:
+#     types: created
 
 jobs:
   applyNeedsAttentionLabel:

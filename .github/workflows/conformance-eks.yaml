@@ -1,74 +1,75 @@
+# DISABLED: This workflow has been disabled
 name: Conformance EKS (ci-eks)
 
 # Any change in triggers needs to be reflected in the concurrency group.
-on:
-  workflow_call:
-    inputs:
-      PR-number:
-        description: "Pull request number."
-        required: true
-        type: string
-      UID:
-        description: "A second number, to differentiate multiple runs of the same workflow by the same PR"
-        required: false
-        default: 1
-        type: number
-      context-ref:
-        description: "Context in which the workflow runs. If PR is from a fork, will be the PR target branch (general case). If PR is NOT from a fork, will be the PR branch itself (this allows committers to test changes to workflows directly from PRs)."
-        required: true
-        type: string
-      SHA:
-        description: "SHA under test (head of the PR branch)."
-        required: true
-        type: string
-      base-SHA:
-        description: "SHA of the base branch (target branch of the PR)."
-        required: false
-        type: string
-      extra-args:
-        description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
-        required: false
-        default: '{}'
-        type: string
-      is-workflow-call:
-        description: "Distinguish if it's a workflow_call event."
-        required: false
-        type: boolean
-        default: true
-      test-concurrency:
-        description: "Count of namespaces to perform the connectivity tests in parallel."
-        required: false
-        type: number
-        default: 3
-    secrets:
-      AWS_PR_ASSUME_ROLE:
-        required: true
+# on:
+#   workflow_call:
+#     inputs:
+#       PR-number:
+#         description: "Pull request number."
+#         required: true
+#         type: string
+#       UID:
+#         description: "A second number, to differentiate multiple runs of the same workflow by the same PR"
+#         required: false
+#         default: 1
+#         type: number
+#       context-ref:
+#         description: "Context in which the workflow runs. If PR is from a fork, will be the PR target branch (general case). If PR is NOT from a fork, will be the PR branch itself (this allows committers to test changes to workflows directly from PRs)."
+#         required: true
+#         type: string
+#       SHA:
+#         description: "SHA under test (head of the PR branch)."
+#         required: true
+#         type: string
+#       base-SHA:
+#         description: "SHA of the base branch (target branch of the PR)."
+#         required: false
+#         type: string
+#       extra-args:
+#         description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
+#         required: false
+#         default: '{}'
+#         type: string
+#       is-workflow-call:
+#         description: "Distinguish if it's a workflow_call event."
+#         required: false
+#         type: boolean
+#         default: true
+#       test-concurrency:
+#         description: "Count of namespaces to perform the connectivity tests in parallel."
+#         required: false
+#         type: number
+#         default: 3
+#     secrets:
+#       AWS_PR_ASSUME_ROLE:
+#         required: true
 
-  workflow_dispatch:
-    inputs:
-      PR-number:
-        description: "Pull request number."
-        required: true
-      UID:
-        description: "A second number, to differentiate multiple runs of the same workflow by the same PR"
-        required: false
-        default: 1
-      context-ref:
-        description: "Context in which the workflow runs. If PR is from a fork, will be the PR target branch (general case). If PR is NOT from a fork, will be the PR branch itself (this allows committers to test changes to workflows directly from PRs)."
-        required: true
-      SHA:
-        description: "SHA under test (head of the PR branch)."
-        required: true
-      base-SHA:
-        description: "SHA of the base branch (target branch of the PR)."
-        required: false
-      extra-args:
-        description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
-        required: false
-        default: '{}'
+#   workflow_dispatch:
+#     inputs:
+#       PR-number:
+#         description: "Pull request number."
+#         required: true
+#       UID:
+#         description: "A second number, to differentiate multiple runs of the same workflow by the same PR"
+#         required: false
+#         default: 1
+#       context-ref:
+#         description: "Context in which the workflow runs. If PR is from a fork, will be the PR target branch (general case). If PR is NOT from a fork, will be the PR branch itself (this allows committers to test changes to workflows directly from PRs)."
+#         required: true
+#       SHA:
+#         description: "SHA under test (head of the PR branch)."
+#         required: true
+#       base-SHA:
+#         description: "SHA of the base branch (target branch of the PR)."
+#         required: false
+#       extra-args:
+#         description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
+#         required: false
+#         default: '{}'
   # Run every 12 hours
-  schedule:
-    - cron:  '0 1/12 * * *'
+#   schedule:
+#     - cron:  '0 1/12 * * *'
 
 # By specifying the access of one of the scopes, all of those that are not
 # specified are set to 'none'.

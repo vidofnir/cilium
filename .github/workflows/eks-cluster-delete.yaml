@@ -1,16 +1,17 @@
+# DISABLED: This workflow has been disabled
 name: Delete EKS Clusters
 
-on:
-  workflow_dispatch:
-    inputs:
-      cluster_name:
-        description: "EKS cluster name to delete"
-        required: true
-        type: string
-      region:
-        description: "AWS region where the cluster is located"
-        required: true
-        type: string
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       cluster_name:
+#         description: "EKS cluster name to delete"
+#         required: true
+#         type: string
+#       region:
+#         description: "AWS region where the cluster is located"
+#         required: true
+#         type: string
 
 permissions:
   id-token: write

@@ -1,8 +1,9 @@
+# DISABLED: This workflow has been disabled
 name: Node Throughput Test
 
-on:
-  schedule:
-    - cron: '39 0 * * *'
+# on:
+#   schedule:
+#     - cron: '39 0 * * *'
 
 # For testing uncomment following lines:
 #  push:

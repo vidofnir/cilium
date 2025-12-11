@@ -1,17 +1,18 @@
+# DISABLED: This workflow has been disabled
 name: Renovate
-on:
-  schedule:
+# on:
+#   schedule:
     # Running every hour every working day (Monday to Friday)
-    - cron: '0 * * * 1-5'
+#     - cron: '0 * * * 1-5'
     # Running every two hours on weekends (Saturday and Sunday)
-    - cron: '0 */2 * * 6,0'
+#     - cron: '0 */2 * * 6,0'
   # allow to manually trigger this workflow
-  workflow_dispatch:
-    inputs:
-      renovate_log_level_debug:
-        type: boolean
-        description: "Run Renovate With Debug Log Levels"
-        default: true
+#   workflow_dispatch:
+#     inputs:
+#       renovate_log_level_debug:
+#         type: boolean
+#         description: "Run Renovate With Debug Log Levels"
+#         default: true
 
 jobs:
   renovate:

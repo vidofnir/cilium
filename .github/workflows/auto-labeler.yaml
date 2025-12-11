@@ -1,14 +1,15 @@
+# DISABLED: This workflow has been disabled
 name: PR and Issues Auto Labeler
 
-on:
-  pull_request_target:
-    types:
-      - opened
-      - reopened
-    branches-ignore:
-      - v1.18
-      - v1.17
-      - v1.16
+# on:
+#   pull_request_target:
+#     types:
+#       - opened
+#       - reopened
+#     branches-ignore:
+#       - v1.18
+#       - v1.17
+#       - v1.16
 
 jobs:
   external-contributions:

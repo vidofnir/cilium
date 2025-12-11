@@ -1,31 +1,32 @@
+# DISABLED: This workflow has been disabled
 name: Wait for Lint Checks
 
-on:
-  workflow_call:
-    inputs:
-      if:
-        description: "Condition to run the wait (true/false)"
-        type: boolean
-        default: true
-      sha:
-        description: "SHA to check for lint workflow completion"
-        required: true
-        type: string
-      lint-workflows:
-        description: "Comma-separated list of lint workflow filenames to wait for"
-        required: false
-        type: string
-        default: "lint-images-base.yaml"
-      timeout-minutes:
-        description: "Maximum time to wait for lint workflows (in minutes)"
-        required: false
-        type: number
-        default: 30
-      poll-interval:
-        description: "Polling interval in seconds"
-        required: false
-        type: number
-        default: 30
+# on:
+#   workflow_call:
+#     inputs:
+#       if:
+#         description: "Condition to run the wait (true/false)"
+#         type: boolean
+#         default: true
+#       sha:
+#         description: "SHA to check for lint workflow completion"
+#         required: true
+#         type: string
+#       lint-workflows:
+#         description: "Comma-separated list of lint workflow filenames to wait for"
+#         required: false
+#         type: string
+#         default: "lint-images-base.yaml"
+#       timeout-minutes:
+#         description: "Maximum time to wait for lint workflows (in minutes)"
+#         required: false
+#         type: number
+#         default: 30
+#       poll-interval:
+#         description: "Polling interval in seconds"
+#         required: false
+#         type: number
+#         default: 30
 
 permissions:
   actions: read

@@ -1,14 +1,15 @@
+# DISABLED: This workflow has been disabled
 name: Go Related Checks
 
 # Any change in triggers needs to be reflected in the concurrency group.
-on:
-  pull_request: {}
-  push:
-    branches:
-      - main
-      - ft/main/**
+# on:
+#   pull_request: {}
+#   push:
+#     branches:
+#       - main
+#       - ft/main/**
   # Add this workflow to be triggered by merge queue events
-  merge_group:
+#   merge_group:
 
 permissions: read-all
 

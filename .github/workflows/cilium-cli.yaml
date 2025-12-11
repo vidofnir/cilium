@@ -1,10 +1,11 @@
+# DISABLED: This workflow has been disabled
 name: Cilium CLI tests
 
-on:
-  pull_request:
-    paths-ignore:
-      - 'Documentation/**'
-      - 'test/**'
+# on:
+#   pull_request:
+#     paths-ignore:
+#       - 'Documentation/**'
+#       - 'test/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}

@@ -1,17 +1,18 @@
+# DISABLED: This workflow has been disabled
 name: Common Post Jobs
 
-on:
-  workflow_call:
-    inputs:
-      context-ref:
-        required: true
-        type: string
-      sha:
-        required: true
-        type: string
-      success:
-        required: true
-        type: boolean
+# on:
+#   workflow_call:
+#     inputs:
+#       context-ref:
+#         required: true
+#         type: string
+#       sha:
+#         required: true
+#         type: string
+#       success:
+#         required: true
+#         type: boolean
 
 jobs:
   merge-upload:

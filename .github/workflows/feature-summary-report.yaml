@@ -1,14 +1,15 @@
+# DISABLED: This workflow has been disabled
 name: Feature Summary Report Generator
 
-on:
-  workflow_dispatch:
-    inputs:
-      SHA:
-        description: "Commit SHA to generate the summary from."
-        required: true
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       SHA:
+#         description: "Commit SHA to generate the summary from."
+#         required: true
   # Run every day
-  schedule:
-    - cron: '0 0 * * *'
+#   schedule:
+#     - cron: '0 0 * * *'
 
 # By specifying the access of one of the scopes, all of those that are not
 # specified are set to 'none'.

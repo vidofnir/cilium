@@ -1,9 +1,10 @@
+# DISABLED: This workflow has been disabled
 name: Scruffy
-on:
-  workflow_dispatch:
-  schedule:
+# on:
+#   workflow_dispatch:
+#   schedule:
     # Run the GC every Monday at 9am
-    - cron: "0 9 * * 1"
+#     - cron: "0 9 * * 1"
 
 permissions: read-all
 

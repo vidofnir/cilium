@@ -1,37 +1,38 @@
+# DISABLED: This workflow has been disabled
 name: Release Tool
 
-on:
-  workflow_dispatch:
-    inputs:
-      step:
-        description: 'Which step do you want to (re-)run?'
-        required: true
-        type: choice
-        options:
-          - 2-prepare-release
-          - 4-post-release
-          - 5-publish-helm
-      version:
-        description: 'Which version are you releasing? (e.g. vX.Y.Z[-(pre|rc).W])'
-        required: true
-        type: string
-        default: vX.Y.Z
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       step:
+#         description: 'Which step do you want to (re-)run?'
+#         required: true
+#         type: choice
+#         options:
+#           - 2-prepare-release
+#           - 4-post-release
+#           - 5-publish-helm
+#       version:
+#         description: 'Which version are you releasing? (e.g. vX.Y.Z[-(pre|rc).W])'
+#         required: true
+#         type: string
+#         default: vX.Y.Z
 
-  workflow_call:
-    inputs:
-      step:
-        description: 'Which step do you want to (re-)run?'
-        required: true
-        type: string
-      version:
-        description: 'Which version are you releasing? (e.g. vX.Y.Z[-(pre|rc).W])'
-        required: true
-        type: string
-    secrets:
-      CILIUM_RELEASE_BOT_PEM:
-        required: true
-      CILIUM_RELEASE_BOT_APP_ID:
-        required: true
+#   workflow_call:
+#     inputs:
+#       step:
+#         description: 'Which step do you want to (re-)run?'
+#         required: true
+#         type: string
+#       version:
+#         description: 'Which version are you releasing? (e.g. vX.Y.Z[-(pre|rc).W])'
+#         required: true
+#         type: string
+#     secrets:
+#       CILIUM_RELEASE_BOT_PEM:
+#         required: true
+#       CILIUM_RELEASE_BOT_APP_ID:
+#         required: true
 
 permissions:
   # To be able to access the repository with `actions/checkout`

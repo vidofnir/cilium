@@ -1,9 +1,10 @@
+# DISABLED: This workflow has been disabled
 name: Approve Renovate PR
 
-on:
-  pull_request:
-    types:
-    - review_requested
+# on:
+#   pull_request:
+#     types:
+#     - review_requested
 
 jobs:
   pre-approve:

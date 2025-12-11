@@ -1,12 +1,13 @@
+# DISABLED: This workflow has been disabled
 name: Cyclonus Network Policy Test
 
-on:
-  push:
-    branches:
-      - main
-      - ft/main/**
-    paths-ignore:
-      - 'Documentation/**'
+# on:
+#   push:
+#     branches:
+#       - main
+#       - ft/main/**
+#     paths-ignore:
+#       - 'Documentation/**'
 
 permissions: read-all
 

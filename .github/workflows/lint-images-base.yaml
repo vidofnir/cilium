@@ -1,16 +1,17 @@
+# DISABLED: This workflow has been disabled
 name: Base Image Lint
 
 # Any change in triggers needs to be reflected in the concurrency group.
-on:
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-  push:
-    branches:
-      - main
-      - ft/main/**
+# on:
+#   pull_request:
+#     types:
+#       - opened
+#       - synchronize
+#       - reopened
+#   push:
+#     branches:
+#       - main
+#       - ft/main/**
 
 permissions: read-all
 

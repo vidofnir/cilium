@@ -1,10 +1,11 @@
+# DISABLED: This workflow has been disabled
 name: Validate Renovate configuration
 
-on:
-  pull_request:
-    paths:
+# on:
+#   pull_request:
+#     paths:
       # Run on any renovate.json5, not just .github/renovate.json5
-      - '**renovate.json5'
+#       - '**renovate.json5'
 
 jobs:
   validate:

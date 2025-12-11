@@ -1,16 +1,17 @@
+# DISABLED: This workflow has been disabled
 name: Chart CI Push
 
-on:
-  workflow_call:
-    inputs:
-      checkout_ref:
-        description: 'Git ref to build.'
-        type: string
-        required: true
-      image_tag:
-        description: 'Image tag to use for the images in the chart.'
-        type: string
-        required: true
+# on:
+#   workflow_call:
+#     inputs:
+#       checkout_ref:
+#         description: 'Git ref to build.'
+#         type: string
+#         required: true
+#       image_tag:
+#         description: 'Image tag to use for the images in the chart.'
+#         type: string
+#         required: true
 
 # By specifying the access of one of the scopes, all of those that are not
 # specified are set to 'none'.

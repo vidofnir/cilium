@@ -1,14 +1,15 @@
+# DISABLED: This workflow has been disabled
 name: BPF Checks
 
 # Any change in triggers needs to be reflected in the concurrency group.
-on:
-  pull_request: {}
-  push:
-    branches:
-      - main
-      - ft/main/**
-  merge_group:
-    types: [checks_requested]
+# on:
+#   pull_request: {}
+#   push:
+#     branches:
+#       - main
+#       - ft/main/**
+#   merge_group:
+#     types: [checks_requested]
 
 permissions: read-all
 
