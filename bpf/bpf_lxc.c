@@ -1537,6 +1537,10 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 	if (!from_l7lb && unlikely(!is_valid_lxc_src_ipv4(ip4)))
 		return DROP_INVALID_SIP;
 
+	/* Validate IGMP packets: must use multicast destinations per RFC 1112, 2236, 3376. */
+	if (ipv4_validate_igmp_destination(ip4) < 0)
+		return DROP_INVALID;
+
 #ifdef ENABLE_MULTICAST
 	if (mcast_ipv4_is_igmp(ip4)) {
 		/* note:

@@ -619,6 +619,10 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx __maybe_unused,
 		return DROP_FRAG_NOSUPPORT;
 #endif
 
+	/* Validate IGMP packets: must use multicast destinations per RFC 1112, 2236, 3376. */
+	if (ipv4_validate_igmp_destination(ip4) < 0)
+		return DROP_INVALID;
+
 #ifdef ENABLE_NODEPORT
 	if (!from_host) {
 		if (!ctx_skip_nodeport(ctx)) {

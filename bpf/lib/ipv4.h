@@ -4,6 +4,7 @@
 #pragma once
 
 #include <linux/ip.h>
+#include <linux/in.h>
 
 #include "dbg.h"
 #include "l4.h"
@@ -61,6 +62,16 @@ static __always_inline int ipv4_dec_ttl(struct __ctx_buff *ctx, int off,
 {
 	__u8 new_ttl, ttl = ip4->ttl;
 
+	/* IGMP requires TTL=1 per RFC 1112, 2236, 3376.
+	 * Do not decrement, forward as-is. Using unlikely() to minimize
+	 * overhead for the common case (TCP/UDP).
+	 */
+	if (unlikely(ip4->protocol == IPPROTO_IGMP)) {
+		if (ttl == 0)
+			return DROP_TTL_EXCEEDED;
+		return 0;
+	}
+
 	if (ttl <= 1)
 		return DROP_TTL_EXCEEDED;
 
@@ -83,6 +94,18 @@ static __always_inline bool ipv4_is_in_subnet(__be32 addr,
 					      __be32 subnet, int prefixlen)
 {
 	return (addr & bpf_htonl(~((1 << (32 - prefixlen)) - 1))) == subnet;
+}
+
+/* Validate IGMP packets: must use multicast destinations per RFC 1112, 2236, 3376.
+ * Unicast destinations with TTL=1 can cause infinite loops (TTL not decrementedfor IGMP).
+ */
+static __always_inline int ipv4_validate_igmp_destination(const struct iphdr *ip4)
+{
+	if (unlikely(ip4->protocol == IPPROTO_IGMP)) {
+		if (!IN_MULTICAST(bpf_ntohl(ip4->daddr)))
+			return DROP_INVALID;
+	}
+	return 0;
 }
 
 #ifdef ENABLE_IPV4_FRAGMENTS

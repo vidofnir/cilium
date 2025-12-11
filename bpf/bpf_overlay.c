@@ -301,6 +301,10 @@ static __always_inline int handle_ipv4(struct __ctx_buff *ctx,
 		return DROP_FRAG_NOSUPPORT;
 #endif
 
+	/* Validate IGMP packets: must use multicast destinations per RFC 1112, 2236, 3376. */
+	if (ipv4_validate_igmp_destination(ip4) < 0)
+		return DROP_INVALID;
+
 #ifdef ENABLE_MULTICAST
 	if (IN_MULTICAST(bpf_ntohl(ip4->daddr))) {
 		if (mcast_lookup_subscriber_map(&ip4->daddr))
