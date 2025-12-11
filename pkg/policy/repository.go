@@ -216,7 +216,9 @@ func (p *Repository) newRule(policyEntry types.PolicyEntry, key ruleKey) *rule {
 		PolicyEntry: policyEntry,
 		key:         key,
 	}
-	r.subjectSelector, _ = p.selectorCache.AddIdentitySelector(r, makeStringLabels(r.Labels), r.Subject)
+	css, _ := p.selectorCache.AddSelectors(r, makeStringLabels(r.Labels), r.Subject)
+	r.subjectSelector = css[0]
+
 	return r
 }
 
@@ -306,9 +308,11 @@ func (p *Repository) resolvePolicyLocked(securityIdentity *identity.Identity) (*
 		hasIngressDefaultDeny, hasEgressDefaultDeny,
 		matchingRules := p.computePolicyEnforcementAndRules(securityIdentity)
 
+	sc := p.GetSelectorCache()
+
 	calculatedPolicy := &selectorPolicy{
 		Revision:             p.GetRevision(),
-		SelectorCache:        p.GetSelectorCache(),
+		SelectorCache:        sc,
 		L4Policy:             NewL4Policy(p.GetRevision()),
 		IngressPolicyEnabled: ingressEnabled,
 		EgressPolicyEnabled:  egressEnabled,
@@ -343,6 +347,9 @@ func (p *Repository) resolvePolicyLocked(securityIdentity *identity.Identity) (*
 
 	// Make the calculated policy ready for incremental updates
 	calculatedPolicy.Attach(&policyCtx)
+
+	// Commit selector changes
+	sc.Commit()
 
 	return calculatedPolicy, nil
 }
@@ -380,7 +387,7 @@ func (p *Repository) computePolicyEnforcementAndRules(securityIdentity *identity
 		}
 	}
 	// Match namespace-specific rules
-	namespace := lbls.Get(labels.LabelSourceK8sKeyPrefix + k8sConst.PodNamespaceLabel)
+	namespace, _ := lbls.LookupLabel(&podNamespaceLabel)
 	if namespace != "" {
 		for rKey := range p.rulesByNamespace[namespace] {
 			r := p.rules[rKey]
@@ -463,8 +470,8 @@ func wildcardRule(lbls labels.LabelArray, ingress bool) *rule {
 	return &rule{
 		PolicyEntry: types.PolicyEntry{
 			Ingress: ingress,
-			Subject: api.NewESFromLabels(lbls...),
-			L3:      types.PeerSelectorSlice{api.WildcardEndpointSelector},
+			Subject: types.NewLabelSelectorFromLabels(lbls...),
+			L3:      types.WildcardSelectors,
 		},
 	}
 }

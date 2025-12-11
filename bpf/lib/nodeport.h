@@ -236,7 +236,7 @@ static __always_inline bool nodeport_uses_dsr6(const struct lb6_service *svc)
 	return nodeport_uses_dsr(svc->flags2 & SVC_FLAG_FWD_MODE_DSR);
 }
 
-static __always_inline bool nodeport_xlate6(const struct lb6_service *svc)
+static __always_inline bool nodeport_skip_xlate6(const struct lb6_service *svc)
 {
 	bool skip_xlate = DSR_ENCAP_MODE == DSR_ENCAP_IPIP;
 
@@ -1399,15 +1399,14 @@ static __always_inline int nodeport_svc_lb6(struct __ctx_buff *ctx,
 		return CTX_ACT_OK;
 	}
 
-	if (nodeport_xlate6(svc))
-		return CTX_ACT_OK;
+	if (!nodeport_skip_xlate6(svc)) {
+		ret = lb6_dnat_request(ctx, backend, l3_off, fraginfo,
+				       l4_off, key, tuple, false);
+		if (IS_ERR(ret))
+			return ret;
+	}
 
-	ret = lb6_dnat_request(ctx, backend, l3_off, fraginfo, l4_off,
-			       key, tuple, false);
-	if (IS_ERR(ret))
-		return ret;
-
-	backend_local = __lookup_ip6_endpoint(&tuple->daddr);
+	backend_local = __lookup_ip6_endpoint(&backend->address);
 	if (!backend_local && lb6_svc_is_hostport(svc))
 		return DROP_INVALID;
 	if (backend_local || !nodeport_uses_dsr6(svc)) {
@@ -1460,7 +1459,7 @@ static __always_inline int nodeport_svc_lb6(struct __ctx_buff *ctx,
 #if DSR_ENCAP_MODE == DSR_ENCAP_IPIP
 		ctx_store_meta(ctx, CB_HINT,
 			       ((__u32)tuple->sport << 16) | tuple->dport);
-		ctx_store_meta_ipv6(ctx, CB_ADDR_V6_1, &tuple->daddr);
+		ctx_store_meta_ipv6(ctx, CB_ADDR_V6_1, &backend->address);
 #elif DSR_ENCAP_MODE == DSR_ENCAP_GENEVE || DSR_ENCAP_MODE == DSR_ENCAP_NONE
 		ctx_store_meta(ctx, CB_PORT, key->dport);
 		ctx_store_meta_ipv6(ctx, CB_ADDR_V6_1, &key->address);
@@ -1576,7 +1575,7 @@ static __always_inline bool nodeport_uses_dsr4(const struct lb4_service *svc)
 	return nodeport_uses_dsr(svc->flags2 & SVC_FLAG_FWD_MODE_DSR);
 }
 
-static __always_inline bool nodeport_xlate4(const struct lb4_service *svc)
+static __always_inline bool nodeport_skip_xlate4(const struct lb4_service *svc)
 {
 	bool skip_xlate = DSR_ENCAP_MODE == DSR_ENCAP_IPIP;
 
@@ -2682,6 +2681,7 @@ static __always_inline int nodeport_svc_lb4(struct __ctx_buff *ctx,
 					    bool *punt_to_stack __maybe_unused,
 					    __s8 *ext_err)
 {
+	const struct lb4_backend *backend;
 	struct ct_state ct_state_svc = {};
 	__u32 cluster_id = 0;
 	bool backend_local;
@@ -2743,8 +2743,6 @@ static __always_inline int nodeport_svc_lb4(struct __ctx_buff *ctx,
 		if (!ret)
 			return NAT_46X64_RECIRC;
 	} else {
-		const struct lb4_backend *backend;
-
 		ret = lb4_local(get_ct_map4(tuple), ctx, fraginfo, l4_off,
 				key, tuple, svc, &ct_state_svc, &backend,
 				ext_err);
@@ -2772,21 +2770,19 @@ static __always_inline int nodeport_svc_lb4(struct __ctx_buff *ctx,
 			return CTX_ACT_OK;
 		}
 
-		if (nodeport_xlate4(svc))
-			return CTX_ACT_OK;
-
 #ifdef ENABLE_CLUSTER_AWARE_ADDRESSING
 		cluster_id = backend->cluster_id;
 #endif
 
-		ret = lb4_dnat_request(ctx, backend, l3_off, fraginfo, l4_off,
-				       key, tuple, false);
+		if (!nodeport_skip_xlate4(svc))
+			ret = lb4_dnat_request(ctx, backend, l3_off, fraginfo,
+					       l4_off, key, tuple, false);
 	}
 
 	if (IS_ERR(ret))
 		return ret;
 
-	backend_local = __lookup_ip4_endpoint(tuple->daddr);
+	backend_local = __lookup_ip4_endpoint(backend->address);
 	if (!backend_local && lb4_svc_is_hostport(svc))
 		return DROP_INVALID;
 	/* Reply from DSR packet is never seen on this node again
@@ -2859,7 +2855,7 @@ static __always_inline int nodeport_svc_lb4(struct __ctx_buff *ctx,
 #if DSR_ENCAP_MODE == DSR_ENCAP_IPIP
 		ctx_store_meta(ctx, CB_HINT,
 			       ((__u32)tuple->sport << 16) | tuple->dport);
-		ctx_store_meta(ctx, CB_ADDR_V4, tuple->daddr);
+		ctx_store_meta(ctx, CB_ADDR_V4, backend->address);
 #elif DSR_ENCAP_MODE == DSR_ENCAP_GENEVE || DSR_ENCAP_MODE == DSR_ENCAP_NONE
 		ctx_store_meta(ctx, CB_PORT, key->dport);
 		ctx_store_meta(ctx, CB_ADDR_V4, key->address);

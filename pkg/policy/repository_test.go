@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy/api"
+	"github.com/cilium/cilium/pkg/policy/types"
 	policytypes "github.com/cilium/cilium/pkg/policy/types"
 	testpolicy "github.com/cilium/cilium/pkg/testutils/policy"
 )
@@ -67,10 +68,8 @@ func TestComputePolicyEnforcementAndRules(t *testing.T) {
 	fooIngressRule1 := &policytypes.PolicyEntry{
 		Ingress:     true,
 		DefaultDeny: true,
-		Subject:     api.NewESFromLabels(fooSelectLabel),
-		L3: policytypes.PeerSelectorSlice{
-			api.NewESFromLabels(fooSelectLabel),
-		},
+		Subject:     types.NewLabelSelectorFromLabels(fooSelectLabel),
+		L3:          types.ToSelectors(api.NewESFromLabels(fooSelectLabel)),
 		Labels: labels.LabelArray{
 			fooIngressRule1Label,
 		},
@@ -79,10 +78,8 @@ func TestComputePolicyEnforcementAndRules(t *testing.T) {
 	fooIngressRule2 := &policytypes.PolicyEntry{
 		Ingress:     true,
 		DefaultDeny: true,
-		Subject:     api.NewESFromLabels(fooSelectLabel),
-		L3: policytypes.PeerSelectorSlice{
-			api.NewESFromLabels(fooSelectLabel),
-		},
+		Subject:     types.NewLabelSelectorFromLabels(fooSelectLabel),
+		L3:          types.ToSelectors(api.NewESFromLabels(fooSelectLabel)),
 		Labels: labels.LabelArray{
 			fooIngressRule2Label,
 		},
@@ -91,10 +88,8 @@ func TestComputePolicyEnforcementAndRules(t *testing.T) {
 	fooEgressRule1 := &policytypes.PolicyEntry{
 		Ingress:     false,
 		DefaultDeny: true,
-		Subject:     api.NewESFromLabels(fooSelectLabel),
-		L3: policytypes.PeerSelectorSlice{
-			api.NewESFromLabels(fooSelectLabel),
-		},
+		Subject:     types.NewLabelSelectorFromLabels(fooSelectLabel),
+		L3:          types.ToSelectors(api.NewESFromLabels(fooSelectLabel)),
 		Labels: labels.LabelArray{
 			fooEgressRule1Label,
 		},
@@ -103,10 +98,8 @@ func TestComputePolicyEnforcementAndRules(t *testing.T) {
 	fooEgressRule2 := &policytypes.PolicyEntry{
 		Ingress:     false,
 		DefaultDeny: true,
-		Subject:     api.NewESFromLabels(fooSelectLabel),
-		L3: policytypes.PeerSelectorSlice{
-			api.NewESFromLabels(fooSelectLabel),
-		},
+		Subject:     types.NewLabelSelectorFromLabels(fooSelectLabel),
+		L3:          types.ToSelectors(api.NewESFromLabels(fooSelectLabel)),
 		Labels: labels.LabelArray{
 			fooEgressRule2Label,
 		},
@@ -116,20 +109,16 @@ func TestComputePolicyEnforcementAndRules(t *testing.T) {
 		&policytypes.PolicyEntry{
 			Ingress:     true,
 			DefaultDeny: true,
-			Subject:     api.NewESFromLabels(fooSelectLabel),
-			L3: policytypes.PeerSelectorSlice{
-				api.NewESFromLabels(fooSelectLabel),
-			},
+			Subject:     types.NewLabelSelectorFromLabels(fooSelectLabel),
+			L3:          types.ToSelectors(api.NewESFromLabels(fooSelectLabel)),
 			Labels: labels.LabelArray{
 				combinedLabel,
 			},
 		}, &policytypes.PolicyEntry{
 			Ingress:     false,
 			DefaultDeny: true,
-			Subject:     api.NewESFromLabels(fooSelectLabel),
-			L3: policytypes.PeerSelectorSlice{
-				api.NewESFromLabels(fooSelectLabel),
-			},
+			Subject:     types.NewLabelSelectorFromLabels(fooSelectLabel),
+			L3:          types.ToSelectors(api.NewESFromLabels(fooSelectLabel)),
 			Labels: labels.LabelArray{
 				combinedLabel,
 			},
@@ -385,8 +374,8 @@ func TestWildcardL3RulesIngress(t *testing.T) {
 			Ingress:  true,
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeKafka,
-					Priority: ListenerPriorityKafka,
+					L7Parser:         ParserTypeKafka,
+					ListenerPriority: ListenerPriorityKafka,
 					L7Rules: api.L7Rules{
 						Kafka: []kafka.PortRule{kafkaRule.Ingress[0].ToPorts[0].Rules.Kafka[0]},
 					},
@@ -401,8 +390,8 @@ func TestWildcardL3RulesIngress(t *testing.T) {
 			Ingress:  true,
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeHTTP,
-					Priority: ListenerPriorityHTTP,
+					L7Parser:         ParserTypeHTTP,
+					ListenerPriority: ListenerPriorityHTTP,
 					L7Rules: api.L7Rules{
 						HTTP: []api.PortRuleHTTP{httpRule.Ingress[0].ToPorts[0].Rules.HTTP[0]},
 					},
@@ -417,8 +406,8 @@ func TestWildcardL3RulesIngress(t *testing.T) {
 			Ingress:  true,
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: L7ParserType("tester"),
-					Priority: ListenerPriorityProxylib,
+					L7Parser:         L7ParserType("tester"),
+					ListenerPriority: ListenerPriorityProxylib,
 					L7Rules: api.L7Rules{
 						L7Proto: "tester",
 						L7:      []api.PortRuleL7{l7Rule.Ingress[0].ToPorts[0].Rules.L7[0]},
@@ -523,8 +512,8 @@ func TestWildcardL4RulesIngress(t *testing.T) {
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar1: nil,
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeHTTP,
-					Priority: ListenerPriorityHTTP,
+					L7Parser:         ParserTypeHTTP,
+					ListenerPriority: ListenerPriorityHTTP,
 					L7Rules: api.L7Rules{
 						HTTP: []api.PortRuleHTTP{httpRule.Ingress[0].ToPorts[0].Rules.HTTP[0]},
 					},
@@ -543,8 +532,8 @@ func TestWildcardL4RulesIngress(t *testing.T) {
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar1: nil,
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeKafka,
-					Priority: ListenerPriorityKafka,
+					L7Parser:         ParserTypeKafka,
+					ListenerPriority: ListenerPriorityKafka,
 					L7Rules: api.L7Rules{
 						Kafka: []kafka.PortRule{kafkaRule.Ingress[0].ToPorts[0].Rules.Kafka[0]},
 					},
@@ -668,8 +657,8 @@ func TestWildcardL3RulesEgress(t *testing.T) {
 			Ingress:  false,
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeDNS,
-					Priority: ListenerPriorityDNS,
+					L7Parser:         ParserTypeDNS,
+					ListenerPriority: ListenerPriorityDNS,
 					L7Rules: api.L7Rules{
 						DNS: []api.PortRuleDNS{dnsRule.Egress[0].ToPorts[0].Rules.DNS[0]},
 					},
@@ -684,8 +673,8 @@ func TestWildcardL3RulesEgress(t *testing.T) {
 			Ingress:  false,
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeHTTP,
-					Priority: ListenerPriorityHTTP,
+					L7Parser:         ParserTypeHTTP,
+					ListenerPriority: ListenerPriorityHTTP,
 					L7Rules: api.L7Rules{
 						HTTP: []api.PortRuleHTTP{httpRule.Egress[0].ToPorts[0].Rules.HTTP[0]},
 					},
@@ -820,8 +809,8 @@ func TestWildcardL4RulesEgress(t *testing.T) {
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar1: nil,
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeHTTP,
-					Priority: ListenerPriorityHTTP,
+					L7Parser:         ParserTypeHTTP,
+					ListenerPriority: ListenerPriorityHTTP,
 					L7Rules: api.L7Rules{
 						HTTP: []api.PortRuleHTTP{httpRule.Egress[0].ToPorts[0].Rules.HTTP[0]},
 					},
@@ -840,8 +829,8 @@ func TestWildcardL4RulesEgress(t *testing.T) {
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar1: nil,
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeDNS,
-					Priority: ListenerPriorityDNS,
+					L7Parser:         ParserTypeDNS,
+					ListenerPriority: ListenerPriorityDNS,
 					L7Rules: api.L7Rules{
 						DNS: []api.PortRuleDNS{dnsRule.Egress[0].ToPorts[0].Rules.DNS[0]},
 					},
@@ -863,14 +852,9 @@ func TestWildcardCIDRRulesEgress(t *testing.T) {
 	labelsL3 := labels.LabelArray{labels.ParseLabel("L3")}
 	labelsHTTP := labels.LabelArray{labels.ParseLabel("http")}
 
-	cidrSlice := api.CIDRSlice{"192.0.0.0/3"}
-	cidrSelectors := cidrSlice.GetAsEndpointSelectors()
-	var cachedSelectors CachedSelectorSlice
-	for i := range cidrSelectors {
-		c, _ := td.sc.AddIdentitySelector(dummySelectorCacheUser, EmptyStringLabels, cidrSelectors[i])
-		cachedSelectors = append(cachedSelectors, c)
-		defer td.sc.RemoveSelector(c, dummySelectorCacheUser)
-	}
+	cachedSelectors, _ := td.sc.AddSelectorsTxn(dummySelectorCacheUser, EmptyStringLabels,
+		types.ToSelectors(api.CIDR("192.0.0.0/3"))...)
+	td.sc.Commit()
 
 	l480Get := api.Rule{
 		Egress: []api.EgressRule{
@@ -921,8 +905,8 @@ func TestWildcardCIDRRulesEgress(t *testing.T) {
 			Ingress:  false,
 			PerSelectorPolicies: L7DataMap{
 				cachedSelectors[0]: &PerSelectorPolicy{
-					L7Parser: ParserTypeHTTP,
-					Priority: ListenerPriorityHTTP,
+					L7Parser:         ParserTypeHTTP,
+					ListenerPriority: ListenerPriorityHTTP,
 					L7Rules: api.L7Rules{
 						HTTP: []api.PortRuleHTTP{{
 							Headers: []string{"X-My-Header: true"},
@@ -1033,8 +1017,8 @@ func TestWildcardL3RulesIngressFromEntities(t *testing.T) {
 			Ingress:  true,
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeKafka,
-					Priority: ListenerPriorityKafka,
+					L7Parser:         ParserTypeKafka,
+					ListenerPriority: ListenerPriorityKafka,
 					L7Rules: api.L7Rules{
 						Kafka: []kafka.PortRule{kafkaRule.Ingress[0].ToPorts[0].Rules.Kafka[0]},
 					},
@@ -1049,8 +1033,8 @@ func TestWildcardL3RulesIngressFromEntities(t *testing.T) {
 			Ingress:  true,
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeHTTP,
-					Priority: ListenerPriorityHTTP,
+					L7Parser:         ParserTypeHTTP,
+					ListenerPriority: ListenerPriorityHTTP,
 					L7Rules: api.L7Rules{
 						HTTP: []api.PortRuleHTTP{httpRule.Ingress[0].ToPorts[0].Rules.HTTP[0]},
 					},
@@ -1146,8 +1130,8 @@ func TestWildcardL3RulesEgressToEntities(t *testing.T) {
 			Ingress:  false,
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeDNS,
-					Priority: ListenerPriorityDNS,
+					L7Parser:         ParserTypeDNS,
+					ListenerPriority: ListenerPriorityDNS,
 					L7Rules: api.L7Rules{
 						DNS: []api.PortRuleDNS{dnsRule.Egress[0].ToPorts[0].Rules.DNS[0]},
 					},
@@ -1162,8 +1146,8 @@ func TestWildcardL3RulesEgressToEntities(t *testing.T) {
 			Ingress:  false,
 			PerSelectorPolicies: L7DataMap{
 				td.cachedSelectorBar2: &PerSelectorPolicy{
-					L7Parser: ParserTypeHTTP,
-					Priority: ListenerPriorityHTTP,
+					L7Parser:         ParserTypeHTTP,
+					ListenerPriority: ListenerPriorityHTTP,
 					L7Rules: api.L7Rules{
 						HTTP: []api.PortRuleHTTP{httpRule.Egress[0].ToPorts[0].Rules.HTTP[0]},
 					},
@@ -1241,8 +1225,8 @@ func TestMinikubeGettingStarted(t *testing.T) {
 		Port: 80, Protocol: api.ProtoTCP, U8Proto: 6,
 		PerSelectorPolicies: L7DataMap{
 			td.cachedSelectorB: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Method: "GET", Path: "/"}, {}},
 				},
@@ -1273,7 +1257,7 @@ func TestIterate(t *testing.T) {
 	lbls := make([]labels.Label, 10)
 	for i := range numRules {
 		it := fmt.Sprintf("baz%d", i)
-		epSelector := api.NewESFromLabels(
+		epSelector := types.NewLabelSelectorFromLabels(
 			labels.NewLabel(
 				"foo",
 				it,
@@ -1284,9 +1268,7 @@ func TestIterate(t *testing.T) {
 		_, _, err := repo.mustAddPolicyEntry(policytypes.PolicyEntry{
 			Subject: epSelector,
 			Labels:  labels.LabelArray{lbls[i]},
-			L3: policytypes.PeerSelectorSlice{
-				epSelector,
-			},
+			L3:      types.Selectors{epSelector},
 		})
 		require.NoError(t, err)
 	}
@@ -1329,10 +1311,10 @@ func TestDefaultAllow(t *testing.T) {
 	genRule := func(ingress, defaultDeny bool) *policytypes.PolicyEntry {
 		name := fmt.Sprintf("%v_%v", ingress, defaultDeny)
 		r := policytypes.PolicyEntry{
-			Subject:     api.NewESFromLabels(fooSelectLabel),
+			Subject:     types.NewLabelSelectorFromLabels(fooSelectLabel),
 			Labels:      labels.LabelArray{labels.NewLabel(k8sConst.PolicyLabelName, name, labels.LabelSourceAny)},
 			Ingress:     ingress,
-			L3:          policytypes.PeerSelectorSlice{api.NewESFromLabels(fooSelectLabel)},
+			L3:          types.ToSelectors(api.NewESFromLabels(fooSelectLabel)),
 			DefaultDeny: defaultDeny,
 		}
 		return &r
@@ -1443,7 +1425,7 @@ func TestReplaceByResource(t *testing.T) {
 	repo := NewPolicyRepository(hivetest.Logger(t), nil, nil, nil, nil, testpolicy.NewPolicyMetricsNoop())
 	sc := testNewSelectorCache(hivetest.Logger(t), nil)
 	repo.selectorCache = sc
-	assert.Empty(t, sc.selectors)
+	assert.True(t, sc.selectors.Empty())
 
 	// create 10 rules, each with a subject selector that selects one identity.
 
@@ -1459,7 +1441,7 @@ func TestReplaceByResource(t *testing.T) {
 			Key:    "subject-pod",
 			Value:  it,
 		}}
-		epSelector := api.NewESFromLabels(
+		epSelector := types.NewLabelSelectorFromLabels(
 			labels.NewLabel(
 				"subject-pod",
 				it,
@@ -1470,9 +1452,7 @@ func TestReplaceByResource(t *testing.T) {
 		rule := &policytypes.PolicyEntry{
 			Subject: epSelector,
 			Labels:  labels.LabelArray{lbl},
-			L3: policytypes.PeerSelectorSlice{
-				destSelector,
-			},
+			L3:      types.ToSelectors(destSelector),
 		}
 		rules = append(rules, rule)
 	}
@@ -1510,7 +1490,7 @@ func TestReplaceByResource(t *testing.T) {
 
 	// Check that the selectorcache is sane
 	// It should have one selector: the subject pod for rule 0
-	assert.Len(t, sc.selectors, 1)
+	assert.Equal(t, 1, sc.selectors.Len())
 
 	// add second resource with rules 1, 2
 	affectedIDs, rev, oldRuleCnt = repo.ReplaceByResource(rules[1:3], rID2)
@@ -1524,7 +1504,7 @@ func TestReplaceByResource(t *testing.T) {
 	assert.Len(t, repo.rulesByResource, 2)
 	assert.Len(t, repo.rulesByResource[rID1], 1)
 	assert.Len(t, repo.rulesByResource[rID2], 2)
-	assert.Len(t, sc.selectors, 3)
+	assert.Equal(t, 3, sc.selectors.Len())
 
 	// replace rid1 with rules 3, 4.
 	// affected IDs should be 100, 103, 104 (for outgoing)
@@ -1539,7 +1519,7 @@ func TestReplaceByResource(t *testing.T) {
 	assert.Len(t, repo.rulesByResource, 2)
 	assert.Len(t, repo.rulesByResource[rID1], 2)
 	assert.Len(t, repo.rulesByResource[rID2], 2)
-	assert.Len(t, sc.selectors, 4)
+	assert.Equal(t, 4, sc.selectors.Len())
 
 	rulesMatch(toSlice(repo.rulesByResource[rID1]), rules[3:5])
 
@@ -1553,7 +1533,7 @@ func TestReplaceByResource(t *testing.T) {
 	assert.Len(t, repo.rules, 2)
 	assert.Len(t, repo.rulesByResource, 1)
 	assert.Len(t, repo.rulesByResource[rID2], 2)
-	assert.Len(t, sc.selectors, 2)
+	assert.Equal(t, 2, sc.selectors.Len())
 	assert.Equal(t, 2, oldRuleCnt)
 
 	assert.ElementsMatch(t, []identity.NumericIdentity{103, 104}, affectedIDs.AsSlice())
@@ -1565,7 +1545,7 @@ func TestReplaceByResource(t *testing.T) {
 	assert.Len(t, repo.rules, 2)
 	assert.Len(t, repo.rulesByResource, 1)
 	assert.Len(t, repo.rulesByResource[rID2], 2)
-	assert.Len(t, sc.selectors, 2)
+	assert.Equal(t, 2, sc.selectors.Len())
 	assert.Equal(t, 0, oldRuleCnt)
 
 	// delete rid2
@@ -1574,6 +1554,6 @@ func TestReplaceByResource(t *testing.T) {
 	assert.ElementsMatch(t, []identity.NumericIdentity{101, 102}, affectedIDs.AsSlice())
 	assert.Empty(t, repo.rules)
 	assert.Empty(t, repo.rulesByResource)
-	assert.Empty(t, sc.selectors)
+	assert.True(t, sc.selectors.Empty())
 	assert.Equal(t, 2, oldRuleCnt)
 }

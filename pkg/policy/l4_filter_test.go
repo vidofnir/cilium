@@ -16,7 +16,7 @@ import (
 	cilium "github.com/cilium/proxy/go/cilium/api"
 	"github.com/cilium/proxy/pkg/policy/api/kafka"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/types"
+	k8sTypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/cilium/cilium/pkg/container/set"
 	"github.com/cilium/cilium/pkg/crypto/certificatemanager"
@@ -26,7 +26,7 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy/api"
-	policytypes "github.com/cilium/cilium/pkg/policy/types"
+	"github.com/cilium/cilium/pkg/policy/types"
 	"github.com/cilium/cilium/pkg/policy/utils"
 	testpolicy "github.com/cilium/cilium/pkg/testutils/policy"
 )
@@ -59,6 +59,7 @@ type testData struct {
 	cachedSelectorHost     CachedSelector
 	wildcardCachedSelector CachedSelector
 	cachedSelectorCIDR     CachedSelector
+	cachedSelectorCIDR0    CachedSelector
 
 	cachedFooSelector CachedSelector
 	cachedBazSelector CachedSelector
@@ -84,17 +85,22 @@ func newTestData(logger *slog.Logger) *testData {
 	td.testPolicyContext.sc = td.sc
 	td.repo.selectorCache = td.sc
 
-	td.wildcardCachedSelector, _ = td.sc.AddIdentitySelector(dummySelectorCacheUser, EmptyStringLabels, api.WildcardEndpointSelector)
+	td.wildcardCachedSelector, _ = td.sc.AddIdentitySelectorForTest(dummySelectorCacheUser, EmptyStringLabels, api.WildcardEndpointSelector)
+
 	td.cachedSelectorCIDR = func(cidr api.CIDR) CachedSelector {
-		ess := api.CIDRSlice{cidr}.GetAsEndpointSelectors()
-		cs, _ := td.sc.AddIdentitySelector(dummySelectorCacheUser, EmptyStringLabels, ess[0])
-		return cs
+		css, _ := td.sc.AddSelectors(dummySelectorCacheUser, EmptyStringLabels, types.ToSelector(cidr))
+		return css[0]
 	}(api.CIDR("10.1.1.1"))
 
-	td.cachedSelectorA = td.getCachedSelectorForTest(endpointSelectorA, idA.ID)
-	td.cachedSelectorB = td.getCachedSelectorForTest(endpointSelectorB, idB.ID)
-	td.cachedSelectorC = td.getCachedSelectorForTest(endpointSelectorC, idC.ID)
-	td.cachedSelectorHost = td.getCachedSelectorForTest(hostSelector, identity.ReservedIdentityHost)
+	td.cachedSelectorCIDR0 = func(cidr api.CIDR) CachedSelector {
+		css, _ := td.sc.AddSelectors(dummySelectorCacheUser, EmptyStringLabels, types.ToSelector(cidr))
+		return css[0]
+	}(api.CIDR("0.0.0.0/0"))
+
+	td.cachedSelectorA = td.getCachedSelectorForTest(endpointSelectorA)
+	td.cachedSelectorB = td.getCachedSelectorForTest(endpointSelectorB)
+	td.cachedSelectorC = td.getCachedSelectorForTest(endpointSelectorC)
+	td.cachedSelectorHost = td.getCachedSelectorForTest(hostSelector)
 
 	td.cachedFooSelector = td.getCachedSelectorForTest(fooSelector)
 	td.cachedBazSelector = td.getCachedSelectorForTest(bazSelector)
@@ -102,9 +108,9 @@ func newTestData(logger *slog.Logger) *testData {
 	td.cachedSelectorBar1 = td.getCachedSelectorForTest(selBar1)
 	td.cachedSelectorBar2 = td.getCachedSelectorForTest(selBar2)
 
-	td.cachedSelectorWorld = td.getCachedSelectorForTest(api.EntitySelectorMapping[api.EntityWorld][0], identity.ReservedIdentityWorld)
-	td.cachedSelectorWorldV4 = td.getCachedSelectorForTest(api.EntitySelectorMapping[api.EntityWorldIPv4][0], identity.ReservedIdentityWorldIPv4)
-	td.cachedSelectorWorldV6 = td.getCachedSelectorForTest(api.EntitySelectorMapping[api.EntityWorldIPv6][0], identity.ReservedIdentityWorldIPv6)
+	td.cachedSelectorWorld = td.getCachedSelectorForTest(api.EntitySelectorMapping[api.EntityWorld][0])
+	td.cachedSelectorWorldV4 = td.getCachedSelectorForTest(api.EntitySelectorMapping[api.EntityWorldIPv4][0])
+	td.cachedSelectorWorldV6 = td.getCachedSelectorForTest(api.EntitySelectorMapping[api.EntityWorldIPv6][0])
 
 	td.repo.policyCache.insert(idA)
 	td.repo.policyCache.insert(idB)
@@ -113,19 +119,9 @@ func newTestData(logger *slog.Logger) *testData {
 	return td
 }
 
-func (td *testData) getCachedSelectorForTest(es api.EndpointSelector, selections ...identity.NumericIdentity) CachedSelector {
-	idSel := &identitySelector{
-		logger:           td.sc.logger,
-		key:              es.CachedString(),
-		users:            make(map[CachedSelectionUser]struct{}),
-		cachedSelections: make(map[identity.NumericIdentity]struct{}),
-	}
-
-	for _, sel := range selections {
-		idSel.cachedSelections[sel] = struct{}{}
-	}
-
-	return idSel
+func (td *testData) getCachedSelectorForTest(es api.EndpointSelector) CachedSelector {
+	cs, _ := td.sc.AddIdentitySelectorForTest(dummySelectorCacheUser, EmptyStringLabels, es)
+	return cs
 }
 
 // withIDs loads the set of IDs in to the SelectorCache. Returns
@@ -167,7 +163,7 @@ func (td *testData) removeIdentity(id *identity.Identity) {
 }
 
 func (td *testData) addIdentitySelector(sel api.EndpointSelector) bool {
-	_, added := td.sc.AddIdentitySelector(dummySelectorCacheUser, EmptyStringLabels, sel)
+	_, added := td.sc.AddIdentitySelectorForTest(dummySelectorCacheUser, EmptyStringLabels, sel)
 	return added
 }
 
@@ -220,7 +216,7 @@ func (td *testData) verifyL4PolicyMapEqual(t *testing.T, expected, actual L4Poli
 				}
 			}
 
-			require.True(t, found, "Failed to find expected cached selector in PerSelectorPolicy: %s", k.String())
+			require.True(t, found, "Failed to find expected cached selector in PerSelectorPolicy: %s (%v)", k.String(), l4B.PerSelectorPolicies)
 		}
 
 		return true
@@ -263,6 +259,12 @@ func (td *testData) validateResolvedPolicy(t *testing.T, selPolicy *selectorPoli
 // The repository is cleared when called.
 func (td *testData) policyMapEquals(t *testing.T, expectedIn, expectedOut L4PolicyMap, rules ...*api.Rule) {
 	t.Helper()
+	entries := utils.RulesToPolicyEntries(rules)
+	td.policyMapEqualsPolicyEntries(t, expectedIn, expectedOut, entries...)
+}
+
+func (td *testData) policyMapEqualsPolicyEntries(t *testing.T, expectedIn, expectedOut L4PolicyMap, entries ...*types.PolicyEntry) {
+	t.Helper()
 	logger := hivetest.Logger(t)
 
 	// Initialize with test identity
@@ -270,13 +272,12 @@ func (td *testData) policyMapEquals(t *testing.T, expectedIn, expectedOut L4Poli
 	defer td.removeIdentity(idA)
 
 	// Add the rules to policy repository.
-	for _, r := range rules {
-		if r.EndpointSelector.LabelSelector == nil {
-			r.EndpointSelector = endpointSelectorA
+	for _, e := range entries {
+		if e.Subject == nil {
+			e.Subject = labelSelectorA
 		}
-		require.NoError(t, r.Sanitize())
 	}
-	td.repo.ReplaceByResource(utils.RulesToPolicyEntries(rules), "dummy-resource")
+	td.repo.ReplaceByResource(entries, "dummy-resource")
 
 	// Resolve the Selector policy for test identity
 	td.repo.mutex.RLock()
@@ -340,6 +341,7 @@ func (td *testData) policyValid(t *testing.T, rules ...*api.Rule) {
 
 // testPolicyContexttype is a dummy context used when evaluating rules.
 type testPolicyContextType struct {
+	level              uint32
 	isIngress          bool
 	isDeny             bool
 	ns                 string
@@ -383,6 +385,16 @@ func (p *testPolicyContextType) GetTLSContext(tls *api.TLSContext) (ca, public, 
 
 func (p *testPolicyContextType) GetEnvoyHTTPRules(*api.L7Rules) (*cilium.HttpNetworkPolicyRules, bool) {
 	return nil, true
+}
+
+// SetPriority sets the precedence level for the first rule being processed.
+func (p *testPolicyContextType) SetPriority(level uint32) {
+	p.level = level
+}
+
+// Priority returns the precedence level for the current rule.
+func (p *testPolicyContextType) Priority() uint32 {
+	return p.level
 }
 
 func (p *testPolicyContextType) SetDeny(isDeny bool) bool {
@@ -575,8 +587,8 @@ func TestMergeAllowAllL3AndShadowedL7(t *testing.T) {
 		wildcard: td.wildcardCachedSelector,
 		PerSelectorPolicies: L7DataMap{
 			td.wildcardCachedSelector: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}, {}},
 				},
@@ -628,8 +640,8 @@ func TestMergeAllowAllL3AndShadowedL7(t *testing.T) {
 		wildcard: td.wildcardCachedSelector,
 		PerSelectorPolicies: L7DataMap{
 			td.wildcardCachedSelector: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}, {}},
 				},
@@ -691,8 +703,8 @@ func TestMergeIdenticalAllowAllL3AndRestrictedL7HTTP(t *testing.T) {
 		wildcard: td.wildcardCachedSelector,
 		PerSelectorPolicies: L7DataMap{
 			td.wildcardCachedSelector: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}},
 				},
@@ -752,8 +764,8 @@ func TestMergeIdenticalAllowAllL3AndRestrictedL7Kafka(t *testing.T) {
 		wildcard: td.wildcardCachedSelector,
 		PerSelectorPolicies: L7DataMap{
 			td.wildcardCachedSelector: &PerSelectorPolicy{
-				L7Parser: ParserTypeKafka,
-				Priority: ListenerPriorityKafka,
+				L7Parser:         ParserTypeKafka,
+				ListenerPriority: ListenerPriorityKafka,
 				L7Rules: api.L7Rules{
 					Kafka: []kafka.PortRule{{Topic: "foo"}},
 				},
@@ -977,14 +989,14 @@ func TestMergeTLSTCPPolicy(t *testing.T) {
 		PerSelectorPolicies: L7DataMap{
 			td.cachedSelectorB: nil, // no proxy redirect
 			td.cachedSelectorC: &PerSelectorPolicy{
-				L7Parser: ParserTypeTLS,
-				Priority: ListenerPriorityTLS,
+				L7Parser:         ParserTypeTLS,
+				ListenerPriority: ListenerPriorityTLS,
 				TerminatingTLS: &TLSContext{
 					FromFile:         true,
 					TrustedCA:        "fake ca tls-cert",
 					CertificateChain: "fake public key tls-cert",
 					PrivateKey:       "fake private key tls-cert",
-					Secret: types.NamespacedName{
+					Secret: k8sTypes.NamespacedName{
 						Name: "tls-cert",
 					},
 				},
@@ -993,7 +1005,7 @@ func TestMergeTLSTCPPolicy(t *testing.T) {
 					TrustedCA:        "fake ca tls-ca-certs",
 					CertificateChain: "fake public key tls-ca-certs",
 					PrivateKey:       "fake private key tls-ca-certs",
-					Secret: types.NamespacedName{
+					Secret: k8sTypes.NamespacedName{
 						Name: "tls-ca-certs",
 					},
 				},
@@ -1058,14 +1070,14 @@ func TestMergeTLSHTTPPolicy(t *testing.T) {
 		PerSelectorPolicies: L7DataMap{
 			td.cachedSelectorB: nil, // no proxy redirect
 			td.cachedSelectorC: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				TerminatingTLS: &TLSContext{
 					FromFile:         true,
 					TrustedCA:        "fake ca tls-cert",
 					CertificateChain: "fake public key tls-cert",
 					PrivateKey:       "fake private key tls-cert",
-					Secret: types.NamespacedName{
+					Secret: k8sTypes.NamespacedName{
 						Name: "tls-cert",
 					},
 				},
@@ -1074,7 +1086,7 @@ func TestMergeTLSHTTPPolicy(t *testing.T) {
 					TrustedCA:        "fake ca tls-ca-certs",
 					CertificateChain: "fake public key tls-ca-certs",
 					PrivateKey:       "fake private key tls-ca-certs",
-					Secret: types.NamespacedName{
+					Secret: k8sTypes.NamespacedName{
 						Name: "tls-ca-certs",
 					},
 				},
@@ -1158,14 +1170,14 @@ func TestMergeTLSSNIPolicy(t *testing.T) {
 		PerSelectorPolicies: L7DataMap{
 			td.cachedSelectorB: nil, // no proxy redirect
 			td.cachedSelectorC: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				TerminatingTLS: &TLSContext{
 					FromFile:         true,
 					TrustedCA:        "fake ca tls-cert",
 					CertificateChain: "fake public key tls-cert",
 					PrivateKey:       "fake private key tls-cert",
-					Secret: types.NamespacedName{
+					Secret: k8sTypes.NamespacedName{
 						Name: "tls-cert",
 					},
 				},
@@ -1174,7 +1186,7 @@ func TestMergeTLSSNIPolicy(t *testing.T) {
 					TrustedCA:        "fake ca tls-ca-certs",
 					CertificateChain: "fake public key tls-ca-certs",
 					PrivateKey:       "fake private key tls-ca-certs",
-					Secret: types.NamespacedName{
+					Secret: k8sTypes.NamespacedName{
 						Name: "tls-ca-certs",
 					},
 				},
@@ -1289,9 +1301,9 @@ func TestMergeListenerPolicy(t *testing.T) {
 		PerSelectorPolicies: L7DataMap{
 			td.cachedSelectorB: nil, // no proxy redirect
 			td.cachedSelectorC: &PerSelectorPolicy{
-				L7Parser: ParserTypeCRD,
-				Priority: ListenerPriorityCRD,
-				Listener: "/shared-cec/test",
+				L7Parser:         ParserTypeCRD,
+				ListenerPriority: ListenerPriorityCRD,
+				Listener:         "/shared-cec/test",
 			},
 		},
 		Ingress: false,
@@ -1347,9 +1359,9 @@ func TestMergeListenerPolicy(t *testing.T) {
 		PerSelectorPolicies: L7DataMap{
 			td.cachedSelectorB: nil, // no proxy redirect
 			td.cachedSelectorC: &PerSelectorPolicy{
-				L7Parser: ParserTypeCRD,
-				Priority: ListenerPriorityCRD,
-				Listener: "default/test-cec/test",
+				L7Parser:         ParserTypeCRD,
+				ListenerPriority: ListenerPriorityCRD,
+				Listener:         "default/test-cec/test",
 			},
 		},
 		Ingress: false,
@@ -1406,9 +1418,9 @@ func TestMergeListenerPolicy(t *testing.T) {
 		PerSelectorPolicies: L7DataMap{
 			td.cachedSelectorB: nil, // no proxy redirect
 			td.cachedSelectorC: &PerSelectorPolicy{
-				L7Parser: ParserTypeCRD,
-				Priority: ListenerPriorityCRD,
-				Listener: "/shared-cec/test",
+				L7Parser:         ParserTypeCRD,
+				ListenerPriority: ListenerPriorityCRD,
+				Listener:         "/shared-cec/test",
 			},
 		},
 		Ingress: false,
@@ -1565,8 +1577,8 @@ func TestL3RuleWithL7RulePartiallyShadowedByL3AllowAll(t *testing.T) {
 		PerSelectorPolicies: L7DataMap{
 			td.wildcardCachedSelector: nil,
 			td.cachedSelectorA: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}},
 				},
@@ -1623,8 +1635,8 @@ func TestL3RuleWithL7RulePartiallyShadowedByL3AllowAll(t *testing.T) {
 		PerSelectorPolicies: L7DataMap{
 			td.wildcardCachedSelector: nil,
 			td.cachedSelectorA: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}},
 				},
@@ -1693,15 +1705,15 @@ func TestL3RuleWithL7RuleShadowedByL3AllowAll(t *testing.T) {
 		wildcard: td.wildcardCachedSelector,
 		PerSelectorPolicies: L7DataMap{
 			td.wildcardCachedSelector: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}},
 				},
 			},
 			td.cachedSelectorA: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}},
 				},
@@ -1763,15 +1775,15 @@ func TestL3RuleWithL7RuleShadowedByL3AllowAll(t *testing.T) {
 		wildcard: td.wildcardCachedSelector,
 		PerSelectorPolicies: L7DataMap{
 			td.wildcardCachedSelector: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}},
 				},
 			},
 			td.cachedSelectorA: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}},
 				},
@@ -2002,15 +2014,15 @@ func TestMergingWithDifferentEndpointsSelectedAllowSameL7(t *testing.T) {
 		wildcard: nil,
 		PerSelectorPolicies: L7DataMap{
 			td.cachedSelectorC: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}},
 				},
 			},
 			td.cachedSelectorA: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}},
 				},
@@ -2116,8 +2128,8 @@ func TestAllowingLocalhostShadowsL7(t *testing.T) {
 		wildcard: td.wildcardCachedSelector,
 		PerSelectorPolicies: L7DataMap{
 			td.wildcardCachedSelector: &PerSelectorPolicy{
-				L7Parser: ParserTypeHTTP,
-				Priority: ListenerPriorityHTTP,
+				L7Parser:         ParserTypeHTTP,
+				ListenerPriority: ListenerPriorityHTTP,
 				L7Rules: api.L7Rules{
 					HTTP: []api.PortRuleHTTP{{Path: "/", Method: "GET"}},
 				},
@@ -2226,8 +2238,8 @@ func TestDNSWildcardInDefaultAllow(t *testing.T) {
 							MatchPattern: "*",
 						}},
 					},
-					L7Parser: ParserTypeDNS,
-					Priority: ListenerPriorityDNS,
+					L7Parser:         ParserTypeDNS,
+					ListenerPriority: ListenerPriorityDNS,
 				},
 			},
 			Ingress:    false,
@@ -2295,8 +2307,8 @@ func TestHTTPWildcardInDefaultAllow(t *testing.T) {
 							// Empty HTTP rule should be added
 						}},
 					},
-					L7Parser: ParserTypeHTTP,
-					Priority: ListenerPriorityHTTP,
+					L7Parser:         ParserTypeHTTP,
+					ListenerPriority: ListenerPriorityHTTP,
 				},
 			},
 			Ingress:    true,
@@ -2363,8 +2375,8 @@ func TestKafkaWildcardInDefaultAllow(t *testing.T) {
 							Topic: "",
 						}},
 					},
-					L7Parser: ParserTypeKafka,
-					Priority: ListenerPriorityKafka,
+					L7Parser:         ParserTypeKafka,
+					ListenerPriority: ListenerPriorityKafka,
 				},
 			},
 			Ingress:    true,
@@ -2431,8 +2443,8 @@ func TestDNSWildcardWithL3FilterInDefaultAllow(t *testing.T) {
 							MatchPattern: "*",
 						}},
 					},
-					L7Parser: ParserTypeDNS,
-					Priority: ListenerPriorityDNS,
+					L7Parser:         ParserTypeDNS,
+					ListenerPriority: ListenerPriorityDNS,
 				},
 			},
 			Ingress:    false,
@@ -2504,8 +2516,8 @@ func TestDenyRuleNoWildcardInDefaultAllow(t *testing.T) {
 							// No wildcard rule should be added
 						}},
 					},
-					L7Parser: ParserTypeHTTP,
-					Priority: ListenerPriorityHTTP,
+					L7Parser:         ParserTypeHTTP,
+					ListenerPriority: ListenerPriorityHTTP,
 				},
 			},
 			Ingress:    true,
@@ -2640,7 +2652,7 @@ func TestDefaultAllowL7Rules(t *testing.T) {
 				Protocol: tc.proto,
 			}
 
-			toEndpoints := policytypes.PeerSelectorSlice{api.NewESFromLabels(labels.ParseSelectLabel("foo"))}
+			toEndpoints := types.ToSelectors(api.NewESFromLabels(labels.ParseSelectLabel("foo")))
 
 			l4Filter, err := createL4Filter(ctx, toEndpoints, nil, egressRule, portProto)
 

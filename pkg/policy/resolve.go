@@ -14,7 +14,6 @@ import (
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
 
-	"github.com/cilium/cilium/pkg/container/versioned"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/option"
@@ -52,6 +51,12 @@ type PolicyContext interface {
 	// such rules being evaluated.
 	GetEnvoyHTTPRules(l7Rules *api.L7Rules) (*cilium.HttpNetworkPolicyRules, bool)
 
+	// SetPriority sets the priority level for the first rule being processed.
+	SetPriority(level uint32)
+
+	// Priority returns the priority level for the current rule.
+	Priority() uint32
+
 	// IsDeny returns true if the policy computation should be done for the
 	// policy deny case. This function returns different values depending on the
 	// code path as it can be changed during the policy calculation.
@@ -78,6 +83,10 @@ type PolicyContext interface {
 type policyContext struct {
 	repo *Repository
 	ns   string
+
+	// level is the precedence level for the rule being processed.
+	level uint32
+
 	// isIngress is set to true for ingress rule processing, false for egress
 	isIngress bool
 	// isDeny this field is set to true if the given policy computation should
@@ -127,6 +136,16 @@ func (p *policyContext) GetTLSContext(tls *api.TLSContext) (ca, public, private 
 
 func (p *policyContext) GetEnvoyHTTPRules(l7Rules *api.L7Rules) (*cilium.HttpNetworkPolicyRules, bool) {
 	return p.repo.GetEnvoyHTTPRules(l7Rules, p.ns)
+}
+
+// SetPriority sets the precedence level for the first rule being processed.
+func (p *policyContext) SetPriority(level uint32) {
+	p.level = level
+}
+
+// Priority returns the precedence level for the current rule.
+func (p *policyContext) Priority() uint32 {
+	return p.level
 }
 
 // IsDeny returns true if the policy computation should be done for the
@@ -221,11 +240,11 @@ type EndpointPolicy struct {
 	// referring to a shared selectorPolicy!
 	SelectorPolicy *selectorPolicy
 
-	// VersionHandle represents the version of the SelectorCache 'policyMapState' was generated
+	// selectors represents the version of the SelectorCache 'policyMapState' was generated
 	// from.
 	// Changes after this version appear in 'policyMapChanges'.
-	// This is updated when incremental changes are applied.
-	VersionHandle *versioned.VersionHandle
+	// This is updated when incremental changes are applied and closed as soon as possible.
+	selectors SelectorSnapshot
 
 	// policyMapState contains the state of this policy as it relates to the
 	// datapath. In the future, this will be factored out of this object to
@@ -247,6 +266,10 @@ type EndpointPolicy struct {
 	// If any redirects are missing a new policy will be computed to rectify it, so this is
 	// constant for the lifetime of this EndpointPolicy.
 	Redirects map[string]uint16
+}
+
+func (p *EndpointPolicy) GetPolicySelectors() SelectorSnapshot {
+	return p.selectors
 }
 
 // LookupRedirectPort returns the redirect L4 proxy port for the given input parameters.
@@ -331,32 +354,34 @@ func (p *selectorPolicy) detach(isDelete bool, endpointID uint64) {
 func (p *selectorPolicy) DistillPolicy(logger *slog.Logger, policyOwner PolicyOwner, redirects map[string]uint16) *EndpointPolicy {
 	var calculatedPolicy *EndpointPolicy
 
-	// EndpointPolicy is initialized while 'GetCurrentVersionHandleFunc' keeps the selector
-	// cache write locked. This syncronizes the SelectorCache handle creation and the insertion
-	// of the new policy to the selectorPolicy before any new incremental updated can be
-	// generated.
+	// EndpointPolicy is initialized while 'WithRLock' keeps the selector cache read
+	// locked. This syncronizes the selector snapshot creation and the registration of the new
+	// EndpointPolicy as a user of the selectorPolicy 'p' before any new incremental updated can
+	// be generated.
 	//
-	// With this we have to following guarantees:
-	// - Selections seen with the 'version' are the ones available at the time of the 'version'
-	//   creation, and the IDs therein have been applied to all Selectors cached at the time.
-	// - All further incremental updates are delivered to 'policyMapChanges' as whole
-	//   transactions, i.e, changes to all selectors due to addition or deletion of new/old
-	//   identities are visible in the set of changes processed and returned by
+	// With this we have to following two guarantees:
+	// - Selections seen via 'selectors' are the ones available at the time of the
+	//   EndpointPolicy creation, and the IDs therein have been applied to all Selectors cached
+	//   at the time.
+	// - All further incremental updates are delivered to 'EndpointPolicy.policyMapChanges'
+	//   as whole transactions, i.e, changes to all selectors due to addition or deletion of
+	//   new/old identities are visible in the set of changes processed and returned by
 	//   ConsumeMapChanges().
-	p.SelectorCache.GetVersionHandleFunc(func(version *versioned.VersionHandle) {
+	p.SelectorCache.WithRLock(func(sc *SelectorCache) {
+		selectors := sc.GetSelectorSnapshot()
 		calculatedPolicy = &EndpointPolicy{
 			SelectorPolicy: p,
-			VersionHandle:  version,
+			selectors:      selectors,
 			policyMapState: newMapState(logger, policyOwner.MapStateSize()),
 			policyMapChanges: MapChanges{
-				logger:       logger,
-				firstVersion: version.Version(),
+				logger:   logger,
+				firstRev: selectors.Revision,
 			},
 			PolicyOwner: policyOwner,
 			Redirects:   redirects,
 		}
 		// Register the new EndpointPolicy as a receiver of incremental
-		// updates before selector cache lock is released by 'GetCurrentVersionHandleFunc'.
+		// updates before selector cache lock is released by 'WithRLock'.
 		p.insertUser(calculatedPolicy)
 	})
 
@@ -368,7 +393,9 @@ func (p *selectorPolicy) DistillPolicy(logger *slog.Logger, policyOwner PolicyOw
 	// Must come after the 'insertUser()' above to guarantee
 	// PolicyMapChanges will contain all changes that are applied
 	// after the computation of PolicyMapState has started.
-	calculatedPolicy.toMapState(logger)
+	p.L4Policy.Ingress.toMapState(logger, calculatedPolicy)
+	p.L4Policy.Egress.toMapState(logger, calculatedPolicy)
+
 	if !policyOwner.IsHost() {
 		calculatedPolicy.policyMapState.determineAllowLocalhostIngress()
 	}
@@ -376,13 +403,19 @@ func (p *selectorPolicy) DistillPolicy(logger *slog.Logger, policyOwner PolicyOw
 	return calculatedPolicy
 }
 
-// Ready releases the handle on a selector cache version so that stale state can be released.
+var (
+	ErrStaleSelectors = errors.New("stale selector snapshot")
+)
+
+// Ready releases memory held for the selector snapshot.
 // This should be called when the policy has been realized.
 func (p *EndpointPolicy) Ready() (err error) {
+	if !p.selectors.IsValid() {
+		return ErrStaleSelectors
+	}
 	// release resources held for this version
-	err = p.VersionHandle.Close()
-	p.VersionHandle = nil
-	return err
+	p.selectors.Invalidate()
+	return nil
 }
 
 // Detach removes EndpointPolicy references from selectorPolicy
@@ -400,9 +433,9 @@ func (p *EndpointPolicy) Detach(logger *slog.Logger) {
 			logfields.Line, line,
 		)
 	}
-	// Also release the version handle held for incremental updates, if any.
-	// This must be done after the removeUser() call above, so that we do not get a new version
-	// handles any more!
+	// Also release the selector snapshot held for incremental updates, if any.
+	// This must be done after the removeUser() call above, so that we do not get any
+	// more incremental updates!
 	p.policyMapChanges.detach()
 }
 
@@ -516,17 +549,6 @@ func (p *EndpointPolicy) RevertChanges(changes ChangeState) {
 	p.policyMapState.revertChanges(changes)
 }
 
-// toMapState transforms the EndpointPolicy.L4Policy into
-// the datapath-friendly format inside EndpointPolicy.PolicyMapState.
-// Called with selectorcache locked for reading.
-// Called without holding the Repository lock.
-// PolicyOwner (aka Endpoint) is also unlocked during this call,
-// but the Endpoint's build mutex is held.
-func (p *EndpointPolicy) toMapState(logger *slog.Logger) {
-	p.SelectorPolicy.L4Policy.Ingress.toMapState(logger, p)
-	p.SelectorPolicy.L4Policy.Egress.toMapState(logger, p)
-}
-
 // toMapState transforms the L4DirectionPolicy into
 // the datapath-friendly format inside EndpointPolicy.PolicyMapState.
 // Called with selectorcache locked for reading.
@@ -567,32 +589,34 @@ func (l4policy L4DirectionPolicy) forEachRedirectFilter(yield func(*L4Filter, Pe
 	return ok
 }
 
-// ConsumeMapChanges applies accumulated MapChanges to EndpointPolicy 'p' and returns a symmary of changes.
-// Caller is responsible for calling the returned 'closer' to release resources held for the new version!
-// 'closer' may not be called while selector cache is locked!
+// ConsumeMapChanges applies accumulated MapChanges to EndpointPolicy 'p' and returns a summary of
+// changes.  Caller is responsible for calling the returned 'closer' to release resources held for
+// the new revision!
 func (p *EndpointPolicy) ConsumeMapChanges() (closer func(), changes ChangeState) {
 	features := p.SelectorPolicy.L4Policy.Ingress.features | p.SelectorPolicy.L4Policy.Egress.features
-	version, changes := p.policyMapChanges.consumeMapChanges(p, features)
+	selectors, changes := p.policyMapChanges.consumeMapChanges(p, features)
 
+	// Update current selector snapshot and provide a closer function to close the new snapshot
+	// if (and only if) the old one was already closed.
 	closer = func() {}
-	if version.IsValid() {
+	if selectors.IsValid() {
 		var msg string
-		// update the version handle in p.VersionHandle so that any follow-on processing
-		// acts on the basis of the new version
-		if p.VersionHandle.IsValid() {
-			p.VersionHandle.Close()
-			msg = "ConsumeMapChanges: updated valid version"
+		// update p.selectors so that any follow-on processing acts on the basis of the new
+		// snapshot
+		if p.selectors.IsValid() {
+			p.selectors.Invalidate()
+			msg = "ConsumeMapChanges: updated existing selector snapshot"
 		} else {
 			closer = func() {
-				// p.VersionHandle was not valid, close it
+				// p.selectors was not open, close the new one as well
 				p.Ready()
 			}
-			msg = "ConsumeMapChanges: new incremental version"
+			msg = "ConsumeMapChanges: new incremental selector snapshot"
 		}
-		p.VersionHandle = version
+		p.selectors = selectors
 
 		p.PolicyOwner.PolicyDebug(msg,
-			logfields.Version, version,
+			logfields.Version, selectors,
 			logfields.Changes, changes,
 		)
 	}
